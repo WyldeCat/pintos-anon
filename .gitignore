@@ -1,0 +1,11 @@
+
+#
+# Vim 
+#
+.*.swp
+
+#
+# ctags
+#
+src/tags
+
