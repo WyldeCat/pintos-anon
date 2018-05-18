@@ -7,6 +7,8 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+
+#include <kernel/list.h>
   
 /* See [8254] for hardware details of the 8254 timer chip. */
 
@@ -16,6 +18,17 @@
 #if TIMER_FREQ > 1000
 #error TIMER_FREQ <= 1000 recommended
 #endif
+
+/* Simple Timer */
+struct timer
+  {
+    int64_t expires;        /* Expire time. */
+    struct thread *sleeper; /* Sleeping thread. */
+    struct list_elem elem;  /* List element. */
+  };
+
+/* List of timers. */
+static struct list timer_list;
 
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
@@ -37,6 +50,8 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+
+  list_init(&timer_list);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -90,10 +105,22 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
+  struct thread* cur = thread_current ();
+  struct timer t;
+  enum intr_level old_level;
 
   ASSERT (intr_get_level () == INTR_ON);
-  while (timer_elapsed (start) < ticks) 
-    thread_yield ();
+
+  t.sleeper = cur;
+  t.expires = start + ticks;
+
+  /* Disable interrupt, push the timer and block the thread */
+  old_level = intr_disable ();
+
+  list_push_back (&timer_list, &t.elem);
+  thread_block ();
+
+  intr_set_level (old_level);
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -170,8 +197,26 @@ timer_print_stats (void)
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
+  struct list_elem *e;
+  struct timer *t;
+
   ticks++;
   thread_tick ();
+
+  ASSERT (intr_get_level () == INTR_OFF);
+
+  /* Iterate timers and unblock threads with expired timer */
+  for (e = list_begin (&timer_list); e != list_end (&timer_list);
+      e = list_next (e))
+    {
+      t = list_entry (e, struct timer, elem);
+
+      if (t->expires == ticks)
+        {
+          thread_unblock (t->sleeper);
+          list_remove (e);
+        }
+    }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
