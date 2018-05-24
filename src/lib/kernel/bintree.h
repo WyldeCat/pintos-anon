@@ -5,8 +5,13 @@
 
    This is implementation of a binary tree does not require
    use of dynamically allocated memory.
+
+   Caching the last child which is the last one when sequence
+   nodes from top to bottom and left to right. This is useful
+   for creating complete binary tree.
 */
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,11 +35,11 @@ struct bintree
                      - offsetof (STRUCT, MEMBER)))
 
 /* Binary tree insertion. */
-void bintree_push (struct bintree *, struct bintree_node *);
+void bintree_insert_left (struct bintree_node *, struct bintree_node *);
+void bintree_insert_right (struct bintree_node *, struct bintree_node *);
 
 /* Binary tree removal. */
 void bintree_remove (struct bintree *, struct bintree_node *);
-void bintree_pop (struct bintree *, struct bintree_node *);
 
 /* Binary tree nodes. */
 struct bintree_node *bintree_root (struct bintree *);
@@ -44,6 +49,7 @@ struct bintree_node *bintree_last_child (struct bintree *);
 bool bintree_empty (struct bintree *);
 
 /* Miscellaneous */
-void bintree_swap_nodes (struct bintree_node *, struct bintree_node *)
+void bintree_swap_nodes (struct bintree_node *, struct bintree *,
+                         struct bintree_node *, struct bintree *);
 
-#endif
+#endif /* lib/kernel/bintree.h */
